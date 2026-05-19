@@ -1,3 +1,15 @@
+app.get("/app.js", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "app.js"));
+});
+
+app.get("/style.css", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "style.css"));
+});
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
