@@ -3,9 +3,81 @@
 <head>
   <meta charset="UTF-8">
   <title>Recharged Studio</title>
+
+  <style>
+    body{
+      margin:0;
+      background:#101820;
+      color:white;
+      font-family:Arial;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+    }
+
+    .card{
+      background:#172331;
+      padding:40px;
+      border-radius:20px;
+      width:400px;
+      border:1px solid #304052;
+    }
+
+    h1{
+      margin-top:0;
+    }
+
+    span{
+      color:#79b900;
+    }
+
+    input{
+      width:100%;
+      padding:12px;
+      margin-top:10px;
+      border-radius:10px;
+      border:none;
+      background:#0b1118;
+      color:white;
+    }
+
+    button{
+      width:100%;
+      padding:14px;
+      margin-top:20px;
+      border:none;
+      border-radius:10px;
+      background:#79b900;
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    .message{
+      margin-top:15px;
+      color:#9cdc21;
+    }
+  </style>
 </head>
 <body>
-  <h1>Recharged Studio draait live!</h1>
-  <p>De applicatie is succesvol gestart.</p>
+
+<div class="card">
+
+  <h1>RECHARGED <span>STUDIO</span></h1>
+
+  <p>Dealer login</p>
+
+  <input placeholder="Dealercode">
+  <input placeholder="E-mail">
+  <input placeholder="Wachtwoord" type="password">
+
+  <button>Inloggen</button>
+
+  <div class="message">
+    Platform succesvol live gezet 🚀
+  </div>
+
+</div>
+
 </body>
 </html>
