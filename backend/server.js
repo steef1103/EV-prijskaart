@@ -13,6 +13,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+app.get("/test", (req, res) => {
+  res.send("TEST ROUTE WERKT");
+});
+
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
