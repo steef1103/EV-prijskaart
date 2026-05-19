@@ -152,6 +152,11 @@ app.get("/api/logs", (req,res)=>{
 
     res.json(logs);
 });
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  res.send("Recharged Studio draait live!");
+});
 
 const PORT = process.env.PORT || 3000;
 
