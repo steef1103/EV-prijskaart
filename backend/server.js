@@ -1,3 +1,6 @@
+console.log("NIEUWE SERVER.JS WORDT GEBRUIKT");
+console.log("__dirname:", __dirname);
+
 app.get("/app.js", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "app.js"));
 });
