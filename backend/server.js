@@ -1,32 +1,199 @@
-const express=require('express');const session=require('express-session');const bcrypt=require('bcryptjs');const Database=require('better-sqlite3');const path=require('path');
-const app=express();const PORT=process.env.PORT||3000;const db=new Database(path.join(__dirname,'data','app.sqlite'));
-app.use(express.json({limit:'10mb'}));app.use(express.urlencoded({extended:true}));app.use(session({secret:process.env.SESSION_SECRET||'dev-secret',resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:'lax',maxAge:28800000}}));app.use(express.static(path.join(__dirname,'public')));
-function init(){db.exec(`CREATE TABLE IF NOT EXISTS dealers(id INTEGER PRIMARY KEY AUTOINCREMENT,code TEXT UNIQUE NOT NULL,name TEXT NOT NULL,logo_text TEXT DEFAULT 'RECHARGED',default_location TEXT DEFAULT '',primary_color TEXT DEFAULT '#79b900',dark_color TEXT DEFAULT '#080c10',package_price TEXT DEFAULT '€ 895,-',package_text TEXT DEFAULT '',highlights TEXT DEFAULT '',active INTEGER DEFAULT 1,created_at TEXT DEFAULT CURRENT_TIMESTAMP);CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,dealer_id INTEGER NOT NULL,email TEXT NOT NULL,name TEXT DEFAULT '',password_hash TEXT NOT NULL,role TEXT DEFAULT 'user',active INTEGER DEFAULT 1,created_at TEXT DEFAULT CURRENT_TIMESTAMP,UNIQUE(dealer_id,email));CREATE TABLE IF NOT EXISTS usage_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,dealer_id INTEGER NOT NULL,user_id INTEGER NOT NULL,kenteken TEXT DEFAULT '',model TEXT DEFAULT '',created_at TEXT DEFAULT CURRENT_TIMESTAMP);`);if(db.prepare('SELECT COUNT(*) c FROM dealers').get().c===0){const pack=`24 maanden garantie|op batterij en elektrische aandrijflijn
-1 jaar pechhulp|24/7 pechhulp in heel Europa
-Volledige onderhoudsgeschiedenis|Controle en verificatie van beschikbare onderhoudsdata
-SoH Rapport|Actuele batterijconditie inzichtelijk
-Auto geleverd met nieuwste software|Inclusief beschikbare updates
-Professionele reiniging binnen & buiten|Netjes en verzorgd afgeleverd
-50 punten EV check|Uitgebreide controle gericht op EV's
-Volledig opgeladen accu bij levering|Klaar voor vertrek
-Minimaal 1 jaar APK|Geldig en veilig de weg op
-1 jaar gratis data|Voor navigatie en connected services`;const high=`Warmtepomp
-Adaptieve cruise control
-Stoelverwarming
-Keyless entry
-360° camera
-Panoramadak
-Stoelventilatie
-LED koplampen
-Navigatie
-Apple CarPlay / Android Auto
-BOVAG garantie
-SoH rapport aanwezig`;const ins=db.prepare('INSERT INTO dealers(code,name,logo_text,default_location,package_text,highlights) VALUES(?,?,?,?,?,?)');const a=ins.run('ADMIN','Recharged Studio Admin','RECHARGED','Hoofdkantoor',pack,high);const d=ins.run('XPENGROT','XPENG Center Rotterdam','XPENG','Center Rotterdam',pack,high);const u=db.prepare('INSERT INTO users(dealer_id,email,name,password_hash,role) VALUES(?,?,?,?,?)');u.run(a.lastInsertRowid,'admin@recharged.local','Admin',bcrypt.hashSync('admin123',10),'admin');u.run(d.lastInsertRowid,'dealer@demo.nl','Demo gebruiker',bcrypt.hashSync('demo123',10),'dealer_admin');}}init();
-function pub(d){return {id:d.id,code:d.code,name:d.name,logo_text:d.logo_text,default_location:d.default_location,primary_color:d.primary_color,dark_color:d.dark_color,package_price:d.package_price,package_text:d.package_text,highlights:d.highlights,active:d.active}}function reqLogin(req,res,n){if(!req.session.user)return res.status(401).json({error:'Niet ingelogd'});n()}function reqAdmin(req,res,n){if(!req.session.user||req.session.user.role!=='admin')return res.status(403).json({error:'Geen adminrechten'});n()}
-app.post('/api/login',(req,res)=>{const {dealerCode,email,password}=req.body;const dealer=db.prepare('SELECT * FROM dealers WHERE UPPER(code)=UPPER(?) AND active=1').get(dealerCode||'');if(!dealer)return res.status(401).json({error:'Dealercode niet gevonden'});const user=db.prepare('SELECT * FROM users WHERE dealer_id=? AND LOWER(email)=LOWER(?) AND active=1').get(dealer.id,email||'');if(!user||!bcrypt.compareSync(password||'',user.password_hash))return res.status(401).json({error:'Ongeldige login'});req.session.user={id:user.id,dealer_id:dealer.id,email:user.email,name:user.name,role:user.role};res.json({user:req.session.user,dealer:pub(dealer)})});
-app.post('/api/logout',(req,res)=>req.session.destroy(()=>res.json({ok:true})));app.get('/api/me',reqLogin,(req,res)=>{const d=db.prepare('SELECT * FROM dealers WHERE id=?').get(req.session.user.dealer_id);res.json({user:req.session.user,dealer:pub(d)})});
-app.get('/api/admin/dealers',reqAdmin,(req,res)=>res.json({dealers:db.prepare('SELECT * FROM dealers ORDER BY id DESC').all().map(pub)}));app.post('/api/admin/dealers',reqAdmin,(req,res)=>{const d=req.body;if(!d.code||!d.name)return res.status(400).json({error:'Dealercode en naam zijn verplicht'});try{const r=db.prepare('INSERT INTO dealers(code,name,logo_text,default_location,primary_color,dark_color,package_price,package_text,highlights,active) VALUES(?,?,?,?,?,?,?,?,?,?)').run(String(d.code).toUpperCase().trim(),d.name,d.logo_text||'RECHARGED',d.default_location||'',d.primary_color||'#79b900',d.dark_color||'#080c10',d.package_price||'€ 895,-',d.package_text||'',d.highlights||'',d.active?1:0);res.json({ok:true,id:r.lastInsertRowid})}catch(e){res.status(400).json({error:'Dealercode bestaat waarschijnlijk al'})}});
-app.put('/api/admin/dealers/:id',reqAdmin,(req,res)=>{const d=req.body;db.prepare('UPDATE dealers SET code=?,name=?,logo_text=?,default_location=?,primary_color=?,dark_color=?,package_price=?,package_text=?,highlights=?,active=? WHERE id=?').run(String(d.code).toUpperCase().trim(),d.name,d.logo_text||'RECHARGED',d.default_location||'',d.primary_color||'#79b900',d.dark_color||'#080c10',d.package_price||'€ 895,-',d.package_text||'',d.highlights||'',d.active?1:0,req.params.id);res.json({ok:true})});
-app.get('/api/admin/dealers/:id/users',reqAdmin,(req,res)=>res.json({users:db.prepare('SELECT id,email,name,role,active,created_at FROM users WHERE dealer_id=? ORDER BY id DESC').all(req.params.id)}));app.post('/api/admin/dealers/:id/users',reqAdmin,(req,res)=>{const u=req.body;if(!u.email||!u.password)return res.status(400).json({error:'E-mail en wachtwoord zijn verplicht'});db.prepare('INSERT INTO users(dealer_id,email,name,password_hash,role,active) VALUES(?,?,?,?,?,?)').run(req.params.id,u.email,u.name||'',bcrypt.hashSync(u.password,10),u.role||'user',u.active?1:0);res.json({ok:true})});
-app.post('/api/log-card',reqLogin,(req,res)=>{db.prepare('INSERT INTO usage_logs(dealer_id,user_id,kenteken,model) VALUES(?,?,?,?)').run(req.session.user.dealer_id,req.session.user.id,req.body.kenteken||'',req.body.model||'');res.json({ok:true})});app.get('/api/admin/usage',reqAdmin,(req,res)=>{res.json({usage:db.prepare(`SELECT dealers.code dealer_code,dealers.name dealer_name,users.email user_email,users.name user_name,COUNT(usage_logs.id) total_cards FROM usage_logs JOIN dealers ON dealers.id=usage_logs.dealer_id JOIN users ON users.id=usage_logs.user_id GROUP BY dealers.id,users.id ORDER BY dealers.name,users.email`).all()})});
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));app.listen(PORT,()=>console.log(`Server draait op poort ${PORT}`));
+const express = require("express");
+const session = require("express-session");
+const bcrypt = require("bcryptjs");
+const Database = require("better-sqlite3");
+const path = require("path");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const db = new Database(path.join(__dirname, "data", "app.sqlite"));
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "recharged-studio-dev-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 8
+  }
+}));
+
+// BELANGRIJK
+app.use(express.static(path.join(__dirname, "public")));
+
+function initDb(){
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dealers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      logo_text TEXT DEFAULT 'RECHARGED',
+      default_location TEXT DEFAULT '',
+      primary_color TEXT DEFAULT '#79b900',
+      dark_color TEXT DEFAULT '#080c10',
+      package_price TEXT DEFAULT '€ 895,-',
+      package_text TEXT DEFAULT '',
+      highlights TEXT DEFAULT '',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dealer_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      name TEXT DEFAULT '',
+      password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS usage_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dealer_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      kenteken TEXT DEFAULT '',
+      model TEXT DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  const dealerCount = db.prepare(
+    "SELECT COUNT(*) as total FROM dealers"
+  ).get();
+
+  if(dealerCount.total === 0){
+
+    const dealerAdmin = db.prepare(`
+      INSERT INTO dealers
+      (code,name,logo_text,default_location)
+      VALUES (?,?,?,?)
+    `).run(
+      "ADMIN",
+      "Recharged Studio Admin",
+      "RECHARGED",
+      "Hoofdkantoor"
+    );
+
+    const dealerDemo = db.prepare(`
+      INSERT INTO dealers
+      (code,name,logo_text,default_location)
+      VALUES (?,?,?,?)
+    `).run(
+      "XPENGROT",
+      "XPENG Center Rotterdam",
+      "XPENG",
+      "Center Rotterdam"
+    );
+
+    db.prepare(`
+      INSERT INTO users
+      (dealer_id,email,name,password_hash,role)
+      VALUES (?,?,?,?,?)
+    `).run(
+      dealerAdmin.lastInsertRowid,
+      "admin@recharged.local",
+      "Admin",
+      bcrypt.hashSync("admin123",10),
+      "admin"
+    );
+
+    db.prepare(`
+      INSERT INTO users
+      (dealer_id,email,name,password_hash,role)
+      VALUES (?,?,?,?,?)
+    `).run(
+      dealerDemo.lastInsertRowid,
+      "dealer@demo.nl",
+      "Demo gebruiker",
+      bcrypt.hashSync("demo123",10),
+      "dealer_admin"
+    );
+  }
+}
+
+initDb();
+
+app.post("/api/login",(req,res)=>{
+
+  const { dealerCode,email,password } = req.body;
+
+  const dealer = db.prepare(`
+    SELECT *
+    FROM dealers
+    WHERE UPPER(code)=UPPER(?)
+    AND active=1
+  `).get(dealerCode || "");
+
+  if(!dealer){
+    return res.status(401).json({
+      error:"Dealercode niet gevonden"
+    });
+  }
+
+  const user = db.prepare(`
+    SELECT *
+    FROM users
+    WHERE dealer_id=?
+    AND LOWER(email)=LOWER(?)
+    AND active=1
+  `).get(
+    dealer.id,
+    email || ""
+  );
+
+  if(!user){
+    return res.status(401).json({
+      error:"Gebruiker niet gevonden"
+    });
+  }
+
+  const valid = bcrypt.compareSync(
+    password || "",
+    user.password_hash
+  );
+
+  if(!valid){
+    return res.status(401).json({
+      error:"Ongeldig wachtwoord"
+    });
+  }
+
+  req.session.user = {
+    id:user.id,
+    dealer_id:user.dealer_id,
+    email:user.email,
+    role:user.role
+  };
+
+  res.json({
+    ok:true,
+    user:req.session.user,
+    dealer
+  });
+});
+
+// HOMEPAGE
+app.get("/",(req,res)=>{
+  res.sendFile(
+    path.join(__dirname,"public","index.html")
+  );
+});
+
+// FRONTEND BESTANDEN
+app.get("*",(req,res)=>{
+  res.sendFile(
+    path.join(__dirname,"public","index.html")
+  );
+});
+
+app.listen(PORT,()=>{
+  console.log(`Server draait op poort ${PORT}`);
+});
