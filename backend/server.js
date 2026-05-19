@@ -1,6 +1,19 @@
 console.log("NIEUWE SERVER.JS WORDT GEBRUIKT");
 console.log("__dirname:", __dirname);
 
+
+
+const express = require("express");
+const session = require("express-session");
+const bcrypt = require("bcryptjs");
+const Database = require("better-sqlite3");
+const path = require("path");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const db = new Database(path.join(__dirname, "data", "app.sqlite"));
+
 app.get("/app.js", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "app.js"));
 });
@@ -16,17 +29,6 @@ app.get("/", (req, res) => {
 app.get("/test", (req, res) => {
   res.send("TEST ROUTE WERKT");
 });
-
-const express = require("express");
-const session = require("express-session");
-const bcrypt = require("bcryptjs");
-const Database = require("better-sqlite3");
-const path = require("path");
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-const db = new Database(path.join(__dirname, "data", "app.sqlite"));
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
